@@ -8,12 +8,41 @@ PS Uso come base il file LocalOpts, ma lo svuoto completamente di tutto il codic
 #include "llvm/Transforms/Utils/LocalOpts.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/InstrTypes.h"
-#include <llvm/IR/Constants.h>
+
+//Temo che ci vorranno degli include in più, ma non so quali potrebbero essere
 
 using namespace llvm;
 
 bool runOnBasicBlock(BasicBlock &B) {
-    
+    //Parto prendendo il basic block
+        //Ne scorro tutte le istruzioni
+            for (auto &Inst : B) {
+                //Ora controllo che la mia sia una operazione
+                if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) {
+                    //controllo che l'operando sia un add
+                    if (BinOp->getOpcode() == Instruction::Add) {
+                        //Prima controllo se è nella forma "0+x"
+                        if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(0))) {
+                            if (CI->isZero()) {
+                                //Mi salvo il valore della x in una variabile Value
+                                Value *X = BinOp->getOperand(1);
+                                //Rimpiazzo tutte le occorrenze con la x stessa
+                                BinOp->replaceAllUsesWith(X);
+                                //cancello la riga di istruzione
+                                BinOp->eraseFromParent();
+                            }
+                        } 
+                        //Ora controllo se è nella forma "x+0"
+                        else if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) {
+                            if (CI->isZero()) {
+                                Value *X = BinOp->getOperand(0);
+                                BinOp->replaceAllUsesWith(X);
+                                BinOp->eraseFromParent();
+                            }
+                        }
+                    }
+                }
+            }
   }
 
 
