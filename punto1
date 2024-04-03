@@ -1,0 +1,40 @@
+/** Per prima cosa procedo a spiegare la mia idea della soluzione del punto 1.
+"Testo del problema: Algebric Identity x+0=0+x=x"
+Parto da qui, la mia prima idea è quella di prendere il blocco e scorrere tutte le linee di istruzioni.
+Per ogni istruzione, vado a controllare se c'è il valore 0(che è un valore costante, ovvero ConstantInt).
+Se c'è lo zero, devo sostituire tutta la istruzione solo con il valore dell'altro operando.
+PS Uso come base il file LocalOpts, ma lo svuoto completamente di tutto il codice del prof e ci metto dentro solo il mio**/
+
+#include "llvm/Transforms/Utils/LocalOpts.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/InstrTypes.h"
+#include <llvm/IR/Constants.h>
+
+using namespace llvm;
+
+bool runOnBasicBlock(BasicBlock &B) {
+    
+  }
+
+
+bool runOnFunction(Function &F) {
+  bool Transformed = false;
+
+  for (auto Iter = F.begin(); Iter != F.end(); ++Iter) {
+    if (runOnBasicBlock(*Iter)) {
+      Transformed = true;
+    }
+  }
+
+  return Transformed;
+}
+
+
+PreservedAnalyses LocalOpts::run(Module &M,
+                                      ModuleAnalysisManager &AM) {
+  for (auto Fiter = M.begin(); Fiter != M.end(); ++Fiter)
+    if (runOnFunction(*Fiter))
+      return PreservedAnalyses::none();
+  
+  return PreservedAnalyses::all();
+}
