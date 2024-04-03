@@ -4,6 +4,7 @@ Parto da qui, la mia prima idea è quella di prendere il blocco e scorrere tutte
 Per ogni istruzione, vado a controllare se c'è il valore 0(che è un valore costante, ovvero ConstantInt).
 Se c'è lo zero, devo sostituire tutta la istruzione solo con il valore dell'altro operando.
 PS Uso come base il file LocalOpts, ma lo svuoto completamente di tutto il codice del prof e ci metto dentro solo il mio**/
+/**Ora, nonostante l'errore, proseguo con la seconda metà del primo punto, analoga al primo punto stesso**/
 
 #include "llvm/Transforms/Utils/LocalOpts.h"
 #include "llvm/IR/Instructions.h"
@@ -13,36 +14,71 @@ PS Uso come base il file LocalOpts, ma lo svuoto completamente di tutto il codic
 
 using namespace llvm;
 
-bool runOnBasicBlock(BasicBlock &B) {
+bool runOnBasicBlock(BasicBlock &B) 
+{
     //Parto prendendo il basic block
-        //Ne scorro tutte le istruzioni
-            for (auto &Inst : B) {
-                //Ora controllo che la mia sia una operazione
-                if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) {
-                    //controllo che l'operando sia un add
-                    if (BinOp->getOpcode() == Instruction::Add) {
-                        //Prima controllo se è nella forma "0+x"
-                        if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(0))) {
-                            if (CI->isZero()) {
-                                //Mi salvo il valore della x in una variabile Value
-                                Value *X = BinOp->getOperand(1);
-                                //Rimpiazzo tutte le occorrenze con la x stessa
-                                BinOp->replaceAllUsesWith(X);
-                                //cancello la riga di istruzione
-                                BinOp->eraseFromParent();
-                            }
-                        } 
-                        //Ora controllo se è nella forma "x+0"
-                        else if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) {
-                            if (CI->isZero()) {
-                                Value *X = BinOp->getOperand(0);
-                                BinOp->replaceAllUsesWith(X);
-                                BinOp->eraseFromParent();
-                            }
+    //Ne scorro tutte le istruzioni
+        for (auto &Inst : B) 
+        {
+            //Ora controllo che la mia sia una operazione
+            if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) 
+            {
+                //controllo che l'operando sia un add
+                if (BinOp->getOpcode() == Instruction::Add) 
+                {
+                    //Prima controllo se è nella forma "0+x"
+                    if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(0))) 
+                    {
+                        if (CI->isZero()) 
+                        {
+                            //Mi salvo il valore della x in una variabile Value
+                            Value *X = BinOp->getOperand(1);
+                            //Rimpiazzo tutte le occorrenze con la x stessa
+                            BinOp->replaceAllUsesWith(X);
+                            //cancello la riga di istruzione
+                            BinOp->eraseFromParent();
+                        }
+                    } 
+                    //Ora controllo se è nella forma "x+0"
+                    else if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
+                    {
+                        if (CI->isZero()) 
+                        {
+                            Value *X = BinOp->getOperand(0);
+                            BinOp->replaceAllUsesWith(X);
+                            BinOp->eraseFromParent();
+                        }
+                    }
+                //SECONDA PARTE
+                //controllo che l'operando sia una mul
+                if (BinOp->getOpcode() == Instruction::Mul) 
+                {
+                    //Prima controllo se è nella forma "1*x"
+                    if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(0))) 
+                    {
+                        if (CI->isOne()) 
+                        {
+                            //Mi salvo il valore della x in una variabile Value
+                            Value *X = BinOp->getOperand(1);
+                            //Rimpiazzo tutte le occorrenze con la x stessa
+                            BinOp->replaceAllUsesWith(X);
+                            //cancello la riga di istruzione
+                            BinOp->eraseFromParent();
+                        }
+                    } 
+                    //Ora controllo se è nella forma "x*1"
+                    else if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
+                    {
+                        if (CI->isOne()) 
+                        {
+                            Value *X = BinOp->getOperand(0);
+                            BinOp->replaceAllUsesWith(X);
+                            BinOp->eraseFromParent();
                         }
                     }
                 }
             }
+        }
   }
 
 
