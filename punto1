@@ -30,7 +30,6 @@ bool runOnBasicBlock(BasicBlock &B) {
                                 BinOp->replaceAllUsesWith(X);
                                 //cancello la riga di istruzione
                                 BinOp->eraseFromParent();
-                                return true;
                             }
                         } 
                         //Ora controllo se è nella forma "x+0"
@@ -39,7 +38,6 @@ bool runOnBasicBlock(BasicBlock &B) {
                                 Value *X = BinOp->getOperand(0);
                                 BinOp->replaceAllUsesWith(X);
                                 BinOp->eraseFromParent();
-                                return true;
                             }
                         }
                     }
