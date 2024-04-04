@@ -63,7 +63,8 @@ bool runOnBasicBlock(BasicBlock &B) {
 
     // ESERCIZIO 2 - un passo piu utile
     // sostituiamo tutte le operazioni di MOLTIPLICAZIONE per due** con uno SHIFT appropriato. 
-    for(Instruction &instIter : B)
+    LLVMContext &context = B.getContext();
+    for (Instruction &instIter : B)
     {
       //controllo che sia un'operazione
       if(auto *BinOp = dyn_cast<BinaryOperator>(&instIter)) {
@@ -71,29 +72,28 @@ bool runOnBasicBlock(BasicBlock &B) {
         if (BinOp->getOpcode() == Instruction::Mul) {
           //controllo che il secondo operando sia una costante. 
           //NOTA: Suppongo che Il primo operando è sempre un registro (?) V/F?
-          ConstantInt* value_LHS = dyn_cast<ConstantInt>(BinOp->getOperand(1));
-          outs() << "Controllo che il dato a cui voglio accedere sia valido: " << value_LHS << "\n"; 
-          APInt is_even = value_LHS->getValue();
-            //infine controllo che il secondo operando sia divisibile per due 
-            if(is_even.isPowerOf2()) {
-              //arrivati fin qui, devo eseguire il rimpiazzo di questa istruzione.  
+          if (auto *value_LHS = dyn_cast<ConstantInt>(BinOp->getOperand(1))) {
+            APInt is_even = value_LHS->getValue();
+              //infine controllo che il secondo operando sia divisibile per due 
+              if(is_even.isPowerOf2()) {
+                //arrivati fin qui, devo eseguire il rimpiazzo di questa istruzione.  
 
-              //capire di quanto devo shiftare: 
-              // APInt n_shl = is_even.logBase2(); 
-              // Recupera il contesto LLVM globale
-              LLVMContext context;
+                //capire di quanto devo shiftare: 
+                // APInt n_shl = is_even.logBase2(); 
 
-              // Crea il ConstantInt con il valore desiderato (ad esempio, 2)
-              ConstantInt *constantTwo = ConstantInt::get(Type::getInt32Ty(context), is_even.logBase2());
+                // Crea il ConstantInt con il valore desiderato
+                ConstantInt *constantTwo = ConstantInt::get(Type::getInt32Ty(context), is_even.logBase2());
 
-              //creo la nuova istruzione: 
-              Instruction *NewInst = BinaryOperator::Create(
-                Instruction::Shl, instIter.getOperand(0), constantTwo); 
+                //creo la nuova istruzione: 
+                /*constantTwo è un valore ConstantInt che eredita da Value (di molte generazioni),
+                    per cui è riconosciuto come Value */
+                Instruction *NewInst = BinaryOperator::Create(
+                  Instruction::Shl, instIter.getOperand(0), constantTwo); 
 
-              //ora rimpiazzo e aggiorno gli usi
-              NewInst->insertAfter(&instIter);
-              instIter.replaceAllUsesWith(NewInst);
-
+                //ora rimpiazzo e aggiorno gli usi
+                NewInst->insertAfter(&instIter);
+                instIter.replaceAllUsesWith(NewInst);
+              }
             }
           
         }
