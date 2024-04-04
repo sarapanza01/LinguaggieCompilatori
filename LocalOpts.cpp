@@ -9,6 +9,8 @@
 #include "llvm/Transforms/Utils/LocalOpts.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Type.h"
 // L'include seguente va in LocalOpts.h
 // #include <llvm/IR/Constants.h>
 
@@ -16,6 +18,7 @@ using namespace llvm;
 
 bool runOnBasicBlock(BasicBlock &B) {
     
+    /*    CODICE DEL PROOOOF - inutile per ora!! 
     // Preleviamo le prime due istruzioni del BB
     Instruction &Inst1st = *B.begin(), &Inst2nd = *(++B.begin());
 
@@ -56,26 +59,51 @@ bool runOnBasicBlock(BasicBlock &B) {
       outs() << "\t" << *(dyn_cast<Instruction>(Iter->getUser())) << "\n";
     }
 
+    */
+
     // ESERCIZIO 2 - un passo piu utile
     // sostituiamo tutte le operazioni di MOLTIPLICAZIONE per due** con uno SHIFT appropriato. 
     for(Instruction &instIter : B)
     {
-      outs() << "getOperandList(): " << instIter.getOperandList() << "\n"; 
-      // outs() << "operands(): " << instIter.operands() << "\n"; 
-      // outs() << "operand_values() : " << instIter->operand_values() << "\n"; 
+      //controllo che sia un'operazione
+      if(auto *BinOp = dyn_cast<BinaryOperator>(&instIter)) {
+        //controllo che sia una mul 
+        if (BinOp->getOpcode() == Instruction::Mul) {
+          //controllo che il secondo operando sia una costante. 
+          //NOTA: Suppongo che Il primo operando è sempre un registro (?) V/F?
+          ConstantInt* value_LHS = dyn_cast<ConstantInt>(BinOp->getOperand(1));
+          outs() << "Controllo che il dato a cui voglio accedere sia valido: " << value_LHS << "\n"; 
+          APInt is_even = value_LHS->getValue();
+            //infine controllo che il secondo operando sia divisibile per due 
+            if(is_even.isPowerOf2()) {
+              //arrivati fin qui, devo eseguire il rimpiazzo di questa istruzione.  
 
-      for (auto *Iter = Inst1st.op_begin(); Iter != Inst1st.op_end(); ++Iter) {
-        Value *Operand = *Iter;
-        if (ConstantInt *Arg = dyn_cast<ConstantInt>(Operand))
-          outs() << "Sono una costante\n";
-        //if (Argument *Arg = dyn_cast<Operator>(Operand))
-        //  outs() << *Arg <<"Sono una operazione\n" << "Non so come specificare quale, ancora"; 
-        if (Argument *Arg = dyn_cast<Argument>(Operand))
-          outs() << *Arg <<"Sono un argomento di funzione...\t" << Arg->getParent()->getName() << "\n";  
+              //capire di quanto devo shiftare: 
+              // APInt n_shl = is_even.logBase2(); 
+              // Recupera il contesto LLVM globale
+              LLVMContext context;
 
+              // Crea il ConstantInt con il valore desiderato (ad esempio, 2)
+              ConstantInt *constantTwo = ConstantInt::get(Type::getInt32Ty(context), is_even.logBase2());
+
+              //creo la nuova istruzione: 
+              Instruction *NewInst = BinaryOperator::Create(
+                Instruction::Shl, instIter.getOperand(0), constantTwo); 
+
+              //ora rimpiazzo e aggiorno gli usi
+              NewInst->insertAfter(&instIter);
+              instIter.replaceAllUsesWith(NewInst);
+
+            }
+          
+        }
       }
     }
 
+    return true; 
+  }
+
+/* APPUNTI DEL PROF
     // Manipolazione delle istruzioni
     Instruction *NewInst = BinaryOperator::Create(
         Instruction::Add, Inst1st.getOperand(0), Inst1st.getOperand(0));
@@ -84,10 +112,7 @@ bool runOnBasicBlock(BasicBlock &B) {
     // Si possono aggiornare le singole references separatamente?
     // Controlla la documentazione e prova a rispondere.
     Inst1st.replaceAllUsesWith(NewInst);
-
-    return true;
-  }
-
+*/
 
 bool runOnFunction(Function &F) {
   bool Transformed = false;
