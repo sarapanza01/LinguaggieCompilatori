@@ -1,0 +1,69 @@
+/** 
+La mia idea per fare il passo 2 è partire dal mio passo 0 e adattarlo al testo del problema, farò prima la seconda
+parte del punto 2 perchè è quella più simile al punto 0.
+**/
+
+#include "llvm/Transforms/Utils/LocalOpts.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Constants.h"
+
+using namespace llvm;
+
+bool runOnBasicBlock(BasicBlock &B) 
+{
+    //Parto scorrendo tutte le istruzioni del Basic Block
+    for (BasicBlock::iterator I = B.begin(); I != B.end(); ++I)
+    {
+        Instruction &Inst = *I;
+        //Guardo se è una operazione binaria...
+        if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) 
+        {
+            //...del tipo div
+            if (BinOp->getOpcode() == Instruction::Div) 
+            {
+              //ora dovrei controllare che il numero costante(ipotizzando si trovi a destra(Right Hand Side) nella operazione) sia un multiplo di due
+              if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
+              {
+                    //uso la variabile di tipo APInt perchè è quello che restituisce la funzione getValue()
+                    APInt RHSValue = CI->getValue();
+                    //Controllo se è un multiplo di due con la funzione trovata nella classe APInt
+                    if (RHSValue.isPowerf2())
+                    {
+                      /**Ora che so se è una potenza di due, devo sostituire l'istruzione con quella dello shift a sinistra
+                        Devo prima scoprire come si chiama lo shift a destra(perchè le punte puntano verso destra >>)**/
+                            IRBuilder<> Builder(BinOp);
+                            Value *ShiftAmount = Builder.getInt32(RHSValue.logBase2());
+                    //Questa istruzione mi sostituisce quella sotto
+                            Value *NewInst = Builder.CreateLShr(BinOp.getOperand(0), ShiftAmount);
+                            BinOp->replaceAllUsesWith(NewInst);
+                     }
+                }
+            }
+        }
+    }
+    return true;
+}
+
+
+bool runOnFunction(Function &F) {
+  bool Transformed = false;
+
+  for (auto Iter = F.begin(); Iter != F.end(); ++Iter) {
+    if (runOnBasicBlock(*Iter)) {
+      Transformed = true;
+    }
+  }
+
+  return Transformed;
+}
+
+
+PreservedAnalyses LocalOpts::run(Module &M,
+                                      ModuleAnalysisManager &AM) {
+  for (auto Fiter = M.begin(); Fiter != M.end(); ++Fiter)
+    if (runOnFunction(*Fiter))
+      return PreservedAnalyses::none();
+
+  return PreservedAnalyses::all();
+}
