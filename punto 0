@@ -12,8 +12,7 @@ using namespace llvm;
 bool runOnBasicBlock(BasicBlock &B) 
 {
     //Parto scorrendo tutte le istruzioni del Basic Block
-    for (auto &Inst : B)
-    {
+    Instruction &Inst = *B.begin()
         //Guardo se è una operazione binaria...
         if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) 
         {
@@ -21,23 +20,23 @@ bool runOnBasicBlock(BasicBlock &B)
             if (BinOp->getOpcode() == Instruction::Mul) 
             {
               //ora dovrei controllare che il numero costante(ipotizzando si trovi a destra(Right Hand Side) nella operazione) sia un multiplo di due
-              if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
+              if (auto *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
               {
                     //uso la variabile di tipo APInt perchè è quello che restituisce la funzione getValue()
                     APInt RHSValue = CI->getValue();
                     //Controllo se è un multiplo di due con la funzione trovata nella classe APInt
                     if (RHSValue.isPowerf2())
                     {
-                      //Ora che so se è una potenza di due, devo sostituire l'istruzione con quella dello shift
-                      //QUESTE SONO LE ISTRUZIONI DEL PROFESSORE
-                      //Manipolazione delle istruzioni
-                      //Lo shift è una Bitwise Binary Operation(da https://llvm.org/docs/LangRef.html) quindi la cerco nella documentazione
-                      //Trovo che la sigla per rappresentare lo shift è "Shl"
-                      //Ora devo trovare di QUANTO devo shiftare, e questo dipende da quale potenza del 2 abbiamo a nel RHS
-                        //Vediamo se trovo qualche funzione in APInt, non ho trovato niente, ma posso procedere con un modo più ignorante
-                        //Value *RHSNewValue = ( RHSValue % 2 ) Ovviamente non funziona
-                       //Mi devo appoggiare ad un altro oggetto, l'IRBuilder
-                            IRBuilder<> Builder(Mul);
+                      /**Ora che so se è una potenza di due, devo sostituire l'istruzione con quella dello shift
+                      **QUESTE SONO LE ISTRUZIONI DEL PROFESSORE
+                      **Manipolazione delle istruzioni
+                      **Lo shift è una Bitwise Binary Operation(da https://llvm.org/docs/LangRef.html) quindi la cerco nella documentazione
+                      **Trovo che la sigla per rappresentare lo shift è "Shl"
+                      **Ora devo trovare di QUANTO devo shiftare, e questo dipende da quale potenza del 2 abbiamo a nel RHS
+                        **Vediamo se trovo qualche funzione in APInt, non ho trovato niente, ma posso procedere con un modo più ignorante
+                        **Value *RHSNewValue = ( RHSValue % 2 ) Ovviamente non funziona
+                        **Mi devo appoggiare ad un altro oggetto, l'IRBuilder**/
+                            IRBuilder<> Builder(BinOp);
                             Value *ShiftAmount = Builder.getInt32(RHSValue.logBase2());
                     //Questa istruzione mi sostituisce quella sotto
                             Value *NewShl = Builder.CreateShl(BinOp.getOperand(0), ShiftAmount);
@@ -46,14 +45,11 @@ bool runOnBasicBlock(BasicBlock &B)
                       // Si possono aggiornare le singole references separatamente?
                       // Controlla la documentazione e prova a rispondere.
                       Inst.replaceAllUsesWith(NewInst);
-                        //Questa funzione NON SO se è necessaria
-                        Inst.eraseFromParent();
                      }
                 }
             }
         }
-    }
-return true;
+    return true;
 }
 
 
