@@ -12,7 +12,9 @@ using namespace llvm;
 bool runOnBasicBlock(BasicBlock &B) 
 {
     //Parto scorrendo tutte le istruzioni del Basic Block
-    Instruction &Inst = *B.begin()
+    for (BasicBlock::iterator I = B.begin(); I != B.end(); ++I)
+    {
+        Instruction &Inst = *I;
         //Guardo se è una operazione binaria...
         if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) 
         {
@@ -49,6 +51,7 @@ bool runOnBasicBlock(BasicBlock &B)
                 }
             }
         }
+    }
     return true;
 }
 
