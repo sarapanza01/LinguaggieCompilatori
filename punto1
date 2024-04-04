@@ -36,8 +36,6 @@ bool runOnBasicBlock(BasicBlock &B)
                             Value *X = BinOp->getOperand(1);
                             //Rimpiazzo tutte le occorrenze con la x stessa
                             BinOp->replaceAllUsesWith(X);
-                            //cancello la riga di istruzione
-                            BinOp->eraseFromParent();
                         }
                     } 
                     //Ora controllo se è nella forma "x+0"
@@ -47,7 +45,6 @@ bool runOnBasicBlock(BasicBlock &B)
                         {
                             Value *X = BinOp->getOperand(0);
                             BinOp->replaceAllUsesWith(X);
-                            BinOp->eraseFromParent();
                         }
                     }
                 //SECONDA PARTE
@@ -63,8 +60,6 @@ bool runOnBasicBlock(BasicBlock &B)
                             Value *X = BinOp->getOperand(1);
                             //Rimpiazzo tutte le occorrenze con la x stessa
                             BinOp->replaceAllUsesWith(X);
-                            //cancello la riga di istruzione
-                            BinOp->eraseFromParent();
                         }
                     } 
                     //Ora controllo se è nella forma "x*1"
@@ -74,7 +69,6 @@ bool runOnBasicBlock(BasicBlock &B)
                         {
                             Value *X = BinOp->getOperand(0);
                             BinOp->replaceAllUsesWith(X);
-                            BinOp->eraseFromParent();
                         }
                     }
                 }
