@@ -35,12 +35,19 @@ bool runOnBasicBlock(BasicBlock &B)
                       //Trovo che la sigla per rappresentare lo shift è "Shl"
                       //Ora devo trovare di QUANTO devo shiftare, e questo dipende da quale potenza del 2 abbiamo a nel RHS
                         //Vediamo se trovo qualche funzione in APInt, non ho trovato niente, ma posso procedere con un modo più ignorante
-                        Value *RHSNewValue = ( RHSValue % 2 )
-                      Instruction *NewInst = BinaryOperator::Create(Instruction::Shl, Inst.getOperand(0), RHSNewValue);
+                        //Value *RHSNewValue = ( RHSValue % 2 ) Ovviamente non funziona
+                       //Mi devo appoggiare ad un altro oggetto, l'IRBuilder
+                            IRBuilder<> Builder(Mul);
+                            Value *ShiftAmount = Builder.getInt32(RHSValue.logBase2());
+                    //Questa istruzione mi sostituisce quella sotto
+                            Value *NewShl = Builder.CreateShl(BinOp.getOperand(0), ShiftAmount);
+                      //Instruction *NewInst = BinaryOperator::Create(Instruction::Shl, Inst.getOperand(0), RHSNewValue);
                       //NewInst->insertAfter(&Inst); Secondo me questa istruzione non serve per sostituire la mia
                       // Si possono aggiornare le singole references separatamente?
                       // Controlla la documentazione e prova a rispondere.
                       Inst.replaceAllUsesWith(NewInst);
+                        //Questa funzione NON SO se è necessaria
+                        Inst.eraseFromParent();
                      }
                 }
             }
