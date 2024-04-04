@@ -41,6 +41,12 @@ bool runOnBasicBlock(BasicBlock &B)
                       // Si possono aggiornare le singole references separatamente?
                       // Controlla la documentazione e prova a rispondere.
                       Inst.replaceAllUsesWith(NewInst);
+                     }
+                }
+            }
+        }
+    }
+return true;
 }
 
 
