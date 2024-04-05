@@ -15,41 +15,39 @@
 using namespace llvm;
 
 bool runOnBasicBlock(BasicBlock &B) {
-
     for (auto &Inst : B) {
-    // prelevo l'istruzione corrente
-    Instruction &Inst1st = Inst;
-
-    // controllo se l'istruzione è un'addizione
-    if (Inst.getOpcode() == Instruction::Add) {
-        // controllo se il secondo operando è una costante
-        Value *Const1 = Inst.getOperand(1);
-        if (isa<ConstantInt>(Const1)) {
-            // Itero su tutti gli user di Inst1st
-            for (auto UserIter = Inst1st.user_begin(); UserIter != Inst1st.user_end(); ++UserIter) {
-                if(Instruction *UserInst = dyn_cast<Instruction>(*UserIter)){
-                                if(UserInst->getOpcode() == Instruction::Sub){
-                                        // Controllo se l'operando Inst1st è usato come primo operando
-
-                                        if (UserInst->getOperand(0) == &Inst1st) {
-                                                // Controllo se il secondo operando dell'istruzione utilizzatrice è una costante uguale a Const1
-                                                if (ConstantInt *Const2 = dyn_cast<ConstantInt>(UserInst->getOperand(1))) {
-                                                    if (Const1 == Const2) {
-                                                    // Sostituisco l'utilizzo dell'istruzione utilizzatrice con Inst1st
-                                                    UserInst->replaceAllUsesWith(Inst1st.getOperand(0));
-                                                    }   
+        // prelevo l'istruzione una ad una
+        Instruction &Inst1st = Inst;
+        // controllo se l'istruzione è un'addizione
+        if (Inst.getOpcode() == Instruction::Add) {
+                // controllo se il secondo operando è una costante
+                Value *Const1 = Inst.getOperand(1);
+                if (isa<ConstantInt>(Const1)) {
+                        // Itero su tutti gli user di Inst1st
+                        for (auto UserIter = Inst1st.user_begin(); UserIter != Inst1st.user_end(); ++UserIter) {
+                                if(Instruction *UserInst = dyn_cast<Instruction>(*UserIter)){
+                                        // Controllo che esista un'istruzione SUB (c=a-1)
+                                        if(UserInst->getOpcode() == Instruction::Sub){
+                                                // Controllo se l'operando Inst1st è usato come primo operando
+                                                if (UserInst->getOperand(0) == &Inst1st) {
+                                                        // Controllo se il secondo operando dell'istruzione utilizzatrice è una costante uguale a Const1
+                                                        if (ConstantInt *Const2 = dyn_cast<ConstantInt>(UserInst->getOperand(1))){
+                                                                if(Const1 == Const2){
+                                                                // Sostituisco l'utilizzo dell'istruzione utilizzatrice con Inst1st
+                                                                UserInst->replaceAllUsesWith(Inst1st.getOperand(0));
+                                                                }
+                                                        }
                                                 }
-                                        }   
-                    }
-                    }
+                                        }
+                                }
 
-            }
-            }
+                        }
+                }
         }
     }
 
-    return true;
-  }
+  return true;
+}
 
 bool runOnFunction(Function &F) {
   bool Transformed = false;
