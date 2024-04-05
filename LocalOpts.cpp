@@ -65,6 +65,79 @@ bool runOnBasicBlock(BasicBlock &B) {
     // Controlla la documentazione e prova a rispondere.
     Inst1st.replaceAllUsesWith(NewInst);
 
+	//PUNTO 1
+	//Per cancellare le righe di codice che contengono il "x+0=0+" || "x*1=1*x"
+	    std::vector<Instruction *> InstToDelete;
+	    //Parto prendendo il basic block
+	    //Ne scorro tutte le istruzioni
+	        for (BasicBlock::iterator I =B.begin(); I != B.end(); ++I) 
+	        {
+	            Instruction &Inst = *I;
+	            //Ora controllo che la mia sia una operazione
+	            if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) 
+	            {
+	                //controllo che l'operando sia un add
+	                if (BinOp->getOpcode() == Instruction::Add) 
+	                {
+	                    //Prima controllo se è nella forma "0+x"
+	                    if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(0))) 
+	                    {
+	                        if (CI->isZero()) 
+	                        {
+	                            //Mi salvo il valore della x in una variabile Value
+	                            Value *X = BinOp->getOperand(1);
+	                            //Rimpiazzo tutte le occorrenze con la x stessa
+	                            BinOp->replaceAllUsesWith(X);
+	                            //Aggiungo l'istruzione a quelle da cancellare
+	                            InstToDelete.push_back(Inst);
+	                        }
+	                    } 
+	                    //Ora controllo se è nella forma "x+0"
+	                    else if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
+	                    {
+	                        if (CI->isZero()) 
+	                        {
+	                            Value *X = BinOp->getOperand(0);
+	                            BinOp->replaceAllUsesWith(X);
+	                            InstToDelete.push_back(Inst);
+	                        }
+	                    }
+	                //SECONDA PARTE
+	                //controllo che l'operando sia una mul
+	                if (BinOp->getOpcode() == Instruction::Mul) 
+	                {
+	                    //Prima controllo se è nella forma "1*x"
+	                    if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(0))) 
+	                    {
+	                        if (CI->isOne()) 
+	                        {
+	                            //Mi salvo il valore della x in una variabile Value
+	                            Value *X = BinOp->getOperand(1);
+	                            //Rimpiazzo tutte le occorrenze con la x stessa
+	                            BinOp->replaceAllUsesWith(X);
+	                            InstToDelete.push_back(Inst);
+	                        }
+	                    } 
+	                    //Ora controllo se è nella forma "x*1"
+	                    else if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
+	                    {
+	                        if (CI->isOne()) 
+	                        {
+	                            Value *X = BinOp->getOperand(0);
+	                            BinOp->replaceAllUsesWith(X);
+	                            InstToDelete.push_back(Inst);
+	                        }
+	                    }
+	                }
+	            }
+	        }
+	    //Ora cancello tutte le istruzioni che devo cancellare
+	    for (auto inst : InstToDelete)
+	    {
+	        inst->eraseFromParent();
+	    }
+	//FINE PUNTO 1
+
     return true;
   }
 
