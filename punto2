@@ -38,6 +38,23 @@ bool runOnBasicBlock(BasicBlock &B)
                             Value *NewInst = Builder.CreateLShr(BinOp.getOperand(0), ShiftAmount);
                             BinOp->replaceAllUsesWith(NewInst);
                      }
+                //PRIMA PARTE DEL SECONDO PUNTO
+                if (BinOp->getOpcode() == Instruction::Mul) 
+                {
+                  //ora dovrei controllare che LHS sia una costante
+                  if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(0))) 
+                  {
+                        //uso la variabile di tipo APInt perchè è quello che restituisce la funzione getValue()
+                        APInt LHSValue = CI->getValue();
+                        Value *ShiftValue = LHSValue.nearestLogBase2(); //in questo modo dovrei ottenere il 4 dell'esempio
+                        //Ora calcolo il (x<<4)
+                        IRBuilder<> Builder(B.getContext());
+                        Value * XShifted = Builder.CreateLShr(BinOp->getOperand(1), ShiftValue);
+                        //Creo la nuova istruzione che è una sottrazione tra x-shiftato e la x stessa
+                        Instruction *NewInst = BinaryOperator::Create(Instruction::Sub, XShifted , BinOp->getOperand(1)); 
+                        //ora rimpiazzo e aggiorno gli usi
+                        NewInst->insertAfter(Inst);
+                        Inst.replaceAllUsesWith(NewInst);
                 }
             }
         }
