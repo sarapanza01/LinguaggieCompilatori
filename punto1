@@ -16,6 +16,8 @@ using namespace llvm;
 
 bool runOnBasicBlock(BasicBlock &B) 
 {
+    //Per cancellare le righe di codice che contengono il "x+0=0+" || "x*1=1*x"
+    std::vector<Instruction *> InstToDelete;
     //Parto prendendo il basic block
     //Ne scorro tutte le istruzioni
         for (BasicBlock::iterator I =B.begin(); I != B.end(); ++I) 
@@ -36,6 +38,8 @@ bool runOnBasicBlock(BasicBlock &B)
                             Value *X = BinOp->getOperand(1);
                             //Rimpiazzo tutte le occorrenze con la x stessa
                             BinOp->replaceAllUsesWith(X);
+                            //Aggiungo l'istruzione a quelle da cancellare
+                            InstToDelete.push_back(Inst);
                         }
                     } 
                     //Ora controllo se è nella forma "x+0"
@@ -45,6 +49,7 @@ bool runOnBasicBlock(BasicBlock &B)
                         {
                             Value *X = BinOp->getOperand(0);
                             BinOp->replaceAllUsesWith(X);
+                            InstToDelete.push_back(Inst);
                         }
                     }
                 //SECONDA PARTE
@@ -60,6 +65,7 @@ bool runOnBasicBlock(BasicBlock &B)
                             Value *X = BinOp->getOperand(1);
                             //Rimpiazzo tutte le occorrenze con la x stessa
                             BinOp->replaceAllUsesWith(X);
+                            InstToDelete.push_back(Inst);
                         }
                     } 
                     //Ora controllo se è nella forma "x*1"
@@ -69,11 +75,18 @@ bool runOnBasicBlock(BasicBlock &B)
                         {
                             Value *X = BinOp->getOperand(0);
                             BinOp->replaceAllUsesWith(X);
+                            InstToDelete.push_back(Inst);
                         }
                     }
                 }
             }
         }
+    //Ora cancello tutte le istruzioni che devo cancellare
+    for (auto inst : InstToDelete)
+    {
+        inst->eraseFromParent();
+    }
+    return true;
   }
 
 
