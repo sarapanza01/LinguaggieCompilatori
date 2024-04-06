@@ -138,8 +138,8 @@ bool runOnBasicBlock(BasicBlock &B) {
 	    }
 	//FINE PUNTO 1
 
-			//INIZIO PUNTO 3
-			 // prelevo l'istruzione una ad una
+	//INIZIO PUNTO 3
+	// prelevo l'istruzione una ad una
         Instruction &Inst1st = Inst;
         // controllo se l'istruzione è un'addizione
         if (Inst.getOpcode() == Instruction::Add) {
