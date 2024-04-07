@@ -9,8 +9,6 @@
 #include "llvm/Transforms/Utils/LocalOpts.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/InstrTypes.h"
-// L'include seguente va in LocalOpts.h
-#include <llvm/IR/Constants.h>
 
 using namespace llvm;
 
@@ -65,47 +63,105 @@ bool runOnBasicBlock(BasicBlock &B) {
     // Controlla la documentazione e prova a rispondere.
     Inst1st.replaceAllUsesWith(NewInst);
 
-	//PUNTO 1
-	//Per cancellare le righe di codice che contengono il "x+0=0+" || "x*1=1*x"
-	    std::vector<Instruction *> InstToDelete;
+    LLVMContext &context = B.getContext();
+ 
+	  //Per cancellare le righe di codice che contengono il "x+0=0+" || "x*1=1*x"
+	  std::vector<Instruction *> InstToDelete;
+
 	    //Parto prendendo il basic block
 	    //Ne scorro tutte le istruzioni
-	        for (BasicBlock::iterator I =B.begin(); I != B.end(); ++I) 
+	        for (Instruction &instIter : B) 
 	        {
-	            Instruction &Inst = *I;
-	            //Ora controllo che la mia sia una operazione
-	            if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) 
-	            {
+	          //Ora controllo che la mia sia una operazione
+	          if (auto *BinOp = dyn_cast<BinaryOperator>(&instIter)) 
+	          {
+              //      LEGENDA 
+                  /*      PUNTO [0]   -   ESERCIZIO 2 - un passo piu utile
+                        sostituire tutte le operazioni di moltiplicazione per due con una shift
+                  */
+
+                  /*      PUNTO [1]   -   ALGEBRAIC IDENTITY: 
+                        (1)   x+0 = 0+x = x   - [1] PRIMA PARTE
+                        (2)   x*1 = 1*x = x   - [1] SECONDA PARTE
+                  */
+
+                  /*       PUNTO [2]   -   STRENGTH REDUCTION: 
+                        (1)   15*x = x*15 -> (x<<4) - x   - [2] PRIMA PARTE
+                        (2)   y = x / 8 -> y = x >>3      - [2] SECONDA PARTE
+                  */
+
+                  /*      PUNTO [3] - MULTI-INSTRUCTION OPTIMIZATION
+                              a = b + 1, c = a - 1 -> a = b + 1, c = b
+                  */
+
+
+                  // [1] PRIMA PARTE
 	                //controllo che l'operando sia un add
 	                if (BinOp->getOpcode() == Instruction::Add) 
 	                {
-	                    //Prima controllo se è nella forma "0+x"
-	                    if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(0))) 
-	                    {
-	                        if (CI->isZero()) 
-	                        {
-	                            //Mi salvo il valore della x in una variabile Value
-	                            Value *X = BinOp->getOperand(1);
-	                            //Rimpiazzo tutte le occorrenze con la x stessa
-	                            BinOp->replaceAllUsesWith(X);
-	                            //Aggiungo l'istruzione a quelle da cancellare
-	                            InstToDelete.push_back(Inst);
-	                        }
-	                    } 
-	                    //Ora controllo se è nella forma "x+0"
-	                    else if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
-	                    {
-	                        if (CI->isZero()) 
-	                        {
-	                            Value *X = BinOp->getOperand(0);
-	                            BinOp->replaceAllUsesWith(X);
-	                            InstToDelete.push_back(Inst);
-	                        }
-	                    }
-	                //SECONDA PARTE
-	                //controllo che l'operando sia una mul
-	                if (BinOp->getOpcode() == Instruction::Mul) 
-	                {
+                    //Prima controllo se è nella forma "0+x"
+                    if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(0))) 
+                    {
+                        if (CI->isZero()) 
+                        {
+                            //Mi salvo il valore della x in una variabile Value
+                            Value *X = BinOp->getOperand(1);
+                            //Rimpiazzo tutte le occorrenze con la x stessa
+                            BinOp->replaceAllUsesWith(X);
+                            //Aggiungo l'istruzione a quelle da cancellare
+                            InstToDelete.push_back(instIter);
+                        }	        for (Instruction &instIter : B) 
+                    } 
+                    //Ora controllo se è nella forma "x+0"
+                    else if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
+                    {
+                        if (CI->isZero()) 
+                        {
+                            Value *X = BinOp->getOperand(0);
+                            BinOp->replaceAllUsesWith(X);
+                            InstToDelete.push_back(instIter);
+                        }
+                    }
+
+
+                      //TODO PUNTO 3 X FATI: CONTROLLA QUESTE MODIFICHE SULLA TUA PARTE
+                      // [3]
+                      else if (Value *Const1 = BinOp->getOperand(1);) 
+                      {
+                        // controllo se il secondo operando è una costante
+                        if (isa<ConstantInt>(Const1)) 
+                        {
+                          // Itero su tutti gli user di instIter
+                          for (auto UserIter = instIter.user_begin(); UserIter != instIter.user_end(); ++UserIter)
+                          {
+                            if(Instruction *UserInst = dyn_cast<Instruction>(*UserIter))
+                            {
+                              // Controllo che esista un'istruzione SUB (c=a-1)
+                              if(UserInst->getOpcode() == Instruction::Sub)
+                              {
+                                // Controllo se l'operando instIter è usato come primo operando
+                                if (UserInst->getOperand(0) == &instIter) 
+                                {
+                                  // Controllo se il secondo operando dell'istruzione utilizzatrice è una costante uguale a Const1
+                                  if (ConstantInt *Const2 = dyn_cast<ConstantInt>(UserInst->getOperand(1)))
+                                  {
+                                    if(Const1 == Const2)
+                                    {
+                                    // Sostituisco l'utilizzo dell'istruzione utilizzatrice con instIter
+                                    UserInst->replaceAllUsesWith(instIter.getOperand(0));
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+	                
+	                  //controllo che l'operando sia una mul
+	                  if (BinOp->getOpcode() == Instruction::Mul) 
+	                  {
+                    //[1] SECONDA PARTE
 	                    //Prima controllo se è nella forma "1*x"
 	                    if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(0))) 
 	                    {
@@ -115,7 +171,7 @@ bool runOnBasicBlock(BasicBlock &B) {
 	                            Value *X = BinOp->getOperand(1);
 	                            //Rimpiazzo tutte le occorrenze con la x stessa
 	                            BinOp->replaceAllUsesWith(X);
-	                            InstToDelete.push_back(Inst);
+	                            InstToDelete.push_back(instIter);
 	                        }
 	                    } 
 	                    //Ora controllo se è nella forma "x*1"
@@ -125,50 +181,88 @@ bool runOnBasicBlock(BasicBlock &B) {
 	                        {
 	                            Value *X = BinOp->getOperand(0);
 	                            BinOp->replaceAllUsesWith(X);
-	                            InstToDelete.push_back(Inst);
+	                            InstToDelete.push_back(instIter);
 	                        }
-	                    }
+
+
+                          //[0] PUNTO
+                          //NOTA: Suppongo che Il primo operando è sempre un registro (?) V/F?
+                          APInt LHS_Value = CI->getValue();
+                          //controllo che il secondo operando sia divisibile per due 
+                          if(LHS_Value.isPowerOf2()) 
+                          {
+                            //capire di quanto devo shiftare: 
+                            ConstantInt *constantTwo = 
+                              ConstantInt::get(Type::getInt32Ty(context), LHS_Value.logBase2());
+
+                            Instruction *NewInst = BinaryOperator::Create(
+                              Instruction::Shl, instIter.getOperand(0), constantTwo); 
+
+                            //ora rimpiazzo e aggiorno gli usi
+                            NewInst->insertAfter(&instIter);
+                            instIter.replaceAllUsesWith(NewInst);
+                            InstToDelete.push_back(instIter); 
+
+                          }
+
+                          // [2] PRIMA PARTE
+                          else if (LHS_Value.urem(2))
+                          {
+                            //La funzione utilizzata arrotonda per eccesso, per questo motivo sottraggo uno. 
+                            Value *ShiftValue = Builder.getInt32(LHSValue.nearestLogBase2()-1);
+
+                            //Ora calcolo il (x<<4)
+                            Instruction *shlInst = BinaryOperator::Create(
+                              Instruction::Shl, BinOp->getOperand(0), ShiftValue); 
+
+                            //Creo la nuova istruzione che è una sottrazione tra x-shiftato e la x stessa
+                            Instruction *subInst = BinaryOperator::Create(
+                              Instruction::Sub, shlInst, BinOp->getOperand(0)); 
+                            
+                            //ora rimpiazzo e aggiorno gli usi
+                            shlInst->insertAfter(&instIter); 
+                            subInst->insertAfter(shlInst);
+                            instIter.replaceAllUsesWith(subInst);
+                            InstToDelete.push_back(instIter); 
+                          }
+
+	                    } 
+
+                    }
 	                }
-	            }
+
+                  // [2] SECONDA PARTE
+                  //...del tipo div
+                  if (BinOp->getOpcode() == Instruction::SDiv) 
+                  {
+                    /*ora dovrei controllare che il numero costante
+                      (ipotizzando si trovi a destra(Right Hand Side) nella operazione) 
+                      sia un multiplo di due
+                      */
+                    if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
+                    {
+                      APInt RHSValue = CI->getValue();
+                      if (RHSValue.isPowerOf2())
+                      {
+                        //sostituire l'istruzione con quella dello shift a sinistra
+                        Value *ShiftAmount = Builder.getInt32(RHSValue.logBase2());
+                        
+                        Instruction *NewInst = BinaryOperator::Create(
+                          Instruction::LShr, BinOp->getOperand(0), ShiftAmount);
+                        NewInst->insertAfter(&instIter);
+                        instIter.replaceAllUsesWith(NewInst);
+                        InstToDelete.push_back(instIter); 
+                      }
+                    }
+                  }
+	          }
 	        }
-	    //Ora cancello tutte le istruzioni che devo cancellare
-	    for (auto inst : InstToDelete)
-	    {
-	        inst->eraseFromParent();
-	    }
-	//FINE PUNTO 1
 
-	//INIZIO PUNTO 3
-	// prelevo l'istruzione una ad una
-        Instruction &Inst1st = Inst;
-        // controllo se l'istruzione è un'addizione
-        if (Inst.getOpcode() == Instruction::Add) {
-                // controllo se il secondo operando è una costante
-                Value *Const1 = Inst.getOperand(1);
-                if (isa<ConstantInt>(Const1)) {
-                        // Itero su tutti gli user di Inst1st
-                        for (auto UserIter = Inst1st.user_begin(); UserIter != Inst1st.user_end(); ++UserIter) {
-                                if(Instruction *UserInst = dyn_cast<Instruction>(*UserIter)){
-                                        // Controllo che esista un'istruzione SUB (c=a-1)
-                                        if(UserInst->getOpcode() == Instruction::Sub){
-                                                // Controllo se l'operando Inst1st è usato come primo operando
-                                                if (UserInst->getOperand(0) == &Inst1st) {
-                                                        // Controllo se il secondo operando dell'istruzione utilizzatrice è una costante uguale a Const1
-                                                        if (ConstantInt *Const2 = dyn_cast<ConstantInt>(UserInst->getOperand(1))){
-                                                                if(Const1 == Const2){
-                                                                // Sostituisco l'utilizzo dell'istruzione utilizzatrice con Inst1st
-                                                                UserInst->replaceAllUsesWith(Inst1st.getOperand(0));
-                                                                }
-                                                        }
-                                                }
-                                        }
-                                }
-
-                        }
-                }
-        }
+    //Ora cancello tutte le istruzioni che devo cancellare
+    for (auto inst : InstToDelete)
+    {
+      inst->eraseFromParent();
     }
-    //FINE PUNTO 3
     return true;
   }
 
