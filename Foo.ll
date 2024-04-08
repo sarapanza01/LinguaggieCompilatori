@@ -7,7 +7,7 @@
 **int d = b / 4;
 **return c * d;
 **}
-define dso_local i32 @foo (i32 non_def %0, i32 non_def %1) #0 {
+define dso_local i32 @foo (i32 noundef %0, i32 noundef %1) #0 {
   %3 = add nsw i32 %1, 1
   %4 = mul nsw i32 %3, 2
   %5 = add nsw i32 %1, 0
