@@ -9,6 +9,7 @@
 #include "llvm/Transforms/Utils/LocalOpts.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/IRBuilder.h"
 
 using namespace llvm;
 
@@ -67,6 +68,7 @@ bool runOnBasicBlock(BasicBlock &B) {
  
 	  //Per cancellare le righe di codice che contengono il "x+0=0+" || "x*1=1*x"
 	  std::vector<Instruction *> InstToDelete;
+    IRBuilder<> Builder(context);
 
 	    //Parto prendendo il basic block
 	    //Ne scorro tutte le istruzioni
@@ -109,8 +111,8 @@ bool runOnBasicBlock(BasicBlock &B) {
                             //Rimpiazzo tutte le occorrenze con la x stessa
                             BinOp->replaceAllUsesWith(X);
                             //Aggiungo l'istruzione a quelle da cancellare
-                            InstToDelete.push_back(instIter);
-                        }	        for (Instruction &instIter : B) 
+                            InstToDelete.push_back(&instIter);
+                        }	        
                     } 
                     //Ora controllo se è nella forma "x+0"
                     else if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
@@ -119,14 +121,14 @@ bool runOnBasicBlock(BasicBlock &B) {
                         {
                             Value *X = BinOp->getOperand(0);
                             BinOp->replaceAllUsesWith(X);
-                            InstToDelete.push_back(instIter);
+                            InstToDelete.push_back(&instIter);
                         }
                     }
 
 
                       //TODO PUNTO 3 X FATI: CONTROLLA QUESTE MODIFICHE SULLA TUA PARTE
                       // [3]
-                      else if (Value *Const1 = BinOp->getOperand(1);) 
+                      if (Value *Const1 = BinOp->getOperand(1)) 
                       {
                         // controllo se il secondo operando è una costante
                         if (isa<ConstantInt>(Const1)) 
@@ -161,6 +163,7 @@ bool runOnBasicBlock(BasicBlock &B) {
 	                  //controllo che l'operando sia una mul
 	                  if (BinOp->getOpcode() == Instruction::Mul) 
 	                  {
+
                     //[1] SECONDA PARTE
 	                    //Prima controllo se è nella forma "1*x"
 	                    if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(0))) 
@@ -171,7 +174,7 @@ bool runOnBasicBlock(BasicBlock &B) {
 	                            Value *X = BinOp->getOperand(1);
 	                            //Rimpiazzo tutte le occorrenze con la x stessa
 	                            BinOp->replaceAllUsesWith(X);
-	                            InstToDelete.push_back(instIter);
+	                            InstToDelete.push_back(&instIter);
 	                        }
 	                    } 
 	                    //Ora controllo se è nella forma "x*1"
@@ -181,7 +184,7 @@ bool runOnBasicBlock(BasicBlock &B) {
 	                        {
 	                            Value *X = BinOp->getOperand(0);
 	                            BinOp->replaceAllUsesWith(X);
-	                            InstToDelete.push_back(instIter);
+	                            InstToDelete.push_back(&instIter);
 	                        }
 
 
@@ -201,7 +204,7 @@ bool runOnBasicBlock(BasicBlock &B) {
                             //ora rimpiazzo e aggiorno gli usi
                             NewInst->insertAfter(&instIter);
                             instIter.replaceAllUsesWith(NewInst);
-                            InstToDelete.push_back(instIter); 
+                            InstToDelete.push_back(&instIter); 
 
                           }
 
@@ -209,7 +212,7 @@ bool runOnBasicBlock(BasicBlock &B) {
                           else if (LHS_Value.urem(2))
                           {
                             //La funzione utilizzata arrotonda per eccesso, per questo motivo sottraggo uno. 
-                            Value *ShiftValue = Builder.getInt32(LHSValue.nearestLogBase2()-1);
+                            Value *ShiftValue = Builder.getInt32(LHS_Value.nearestLogBase2()-1);
 
                             //Ora calcolo il (x<<4)
                             Instruction *shlInst = BinaryOperator::Create(
@@ -223,7 +226,7 @@ bool runOnBasicBlock(BasicBlock &B) {
                             shlInst->insertAfter(&instIter); 
                             subInst->insertAfter(shlInst);
                             instIter.replaceAllUsesWith(subInst);
-                            InstToDelete.push_back(instIter); 
+                            InstToDelete.push_back(&instIter); 
                           }
 
 	                    } 
@@ -251,7 +254,7 @@ bool runOnBasicBlock(BasicBlock &B) {
                           Instruction::LShr, BinOp->getOperand(0), ShiftAmount);
                         NewInst->insertAfter(&instIter);
                         instIter.replaceAllUsesWith(NewInst);
-                        InstToDelete.push_back(instIter); 
+                        InstToDelete.push_back(&instIter); 
                       }
                     }
                   }
@@ -288,4 +291,3 @@ PreservedAnalyses LocalOpts::run(Module &M,
   
   return PreservedAnalyses::all();
 }
-
