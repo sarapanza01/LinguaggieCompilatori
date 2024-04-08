@@ -197,6 +197,7 @@ bool isPunto3(BasicBlock &B)
                         }
                 }
         }
+	return true;
     //FINE PUNTO 3
 }
 
