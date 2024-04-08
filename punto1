@@ -23,7 +23,7 @@ bool runOnBasicBlock(BasicBlock &B)
     //Ne scorro tutte le istruzioni
         for (BasicBlock::iterator I =B.begin(); I != B.end(); ++I) 
         {
-            Instruction &Inst = &*I;
+            Instruction *Inst = &*I;
             //Ora controllo che la mia sia una operazione
             if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) 
             {
