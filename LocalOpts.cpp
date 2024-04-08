@@ -15,64 +15,15 @@
 
 using namespace llvm;
 
-bool runOnBasicBlock(BasicBlock &B) {
-    
-    // Preleviamo le prime due istruzioni del BB
-    Instruction &Inst1st = *B.begin(), &Inst2nd = *(++B.begin());
-
-    // L'indirizzo della prima istruzione deve essere uguale a quello del 
-    // primo operando della seconda istruzione (per costruzione dell'esempio)
-    assert(&Inst1st == Inst2nd.getOperand(0));
-
-    // Stampa la prima istruzione
-    outs() << "PRIMA ISTRUZIONE: " << Inst1st << "\n";
-    // Stampa la prima istruzione come operando
-    outs() << "COME OPERANDO: ";
-    Inst1st.printAsOperand(outs(), false);
-    outs() << "\n";
-
-    // User-->Use-->Value
-    outs() << "I MIEI OPERANDI SONO:\n";
-    for (auto *Iter = Inst1st.op_begin(); Iter != Inst1st.op_end(); ++Iter) {
-      Value *Operand = *Iter;
-
-      if (Argument *Arg = dyn_cast<Argument>(Operand)) {
-        outs() << "\t" << *Arg << ": SONO L'ARGOMENTO N. " << Arg->getArgNo() 
-	       <<" DELLA FUNZIONE " << Arg->getParent()->getName()
-               << "\n";
-      }
-      if (ConstantInt *C = dyn_cast<ConstantInt>(Operand)) {
-        outs() << "\t" << *C << ": SONO UNA COSTANTE INTERA DI VALORE " << C->getValue()
-               << "\n";
-      }
-    }
-
-    outs() << "LA LISTA DEI MIEI USERS:\n";
-    for (auto Iter = Inst1st.user_begin(); Iter != Inst1st.user_end(); ++Iter) {
-      outs() << "\t" << *(dyn_cast<Instruction>(*Iter)) << "\n";
-    }
-
-    outs() << "E DEI MIEI USI (CHE E' LA STESSA):\n";
-    for (auto Iter = Inst1st.use_begin(); Iter != Inst1st.use_end(); ++Iter) {
-      outs() << "\t" << *(dyn_cast<Instruction>(Iter->getUser())) << "\n";
-    }
-
-    // Manipolazione delle istruzioni
-    Instruction *NewInst = BinaryOperator::Create(
-        Instruction::Add, Inst1st.getOperand(0), Inst1st.getOperand(0));
-
-    NewInst->insertAfter(&Inst1st);
-    // Si possono aggiornare le singole references separatamente?
-    // Controlla la documentazione e prova a rispondere.
-    Inst1st.replaceAllUsesWith(NewInst);
-
-	//PUNTO 1
+bool isPunto1(BasicBlock &B)
+{
+    //PUNTO 1
 	//Per cancellare le righe di codice che contengono il "x+0=0+" || "x*1=1*x"
 	    std::vector<Instruction *> InstToDelete;
 	    //Parto prendendo il basic block
 	    //Ne scorro tutte le istruzioni
-	        for (BasicBlock::iterator I =B.begin(); I != B.end(); ++I) 
-	        {
+	    for (BasicBlock::iterator I =B.begin(); I != B.end(); ++I) 
+	    {
 	            Instruction &Inst = &*I;
 	            //Ora controllo che la mia sia una operazione
 	            if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) 
@@ -133,14 +84,91 @@ bool runOnBasicBlock(BasicBlock &B) {
 	            }
 	        }
 		}
-	    //Ora cancello tutte le istruzioni che devo cancellare
+    //Ora cancello tutte le istruzioni che devo cancellare
 	    for (auto inst : InstToDelete)
 	    {
 	        inst->eraseFromParent();
 	    }
 	//FINE PUNTO 1
+    return true;
+}
 
-	//INIZIO PUNTO 3
+bool isPunto2(BasicBlock &B)
+{
+     IRBuilder<> Builder(B.getContext());
+
+    //Parto scorrendo tutte le istruzioni del Basic Block
+    for (BasicBlock::iterator I = B.begin(); I != B.end(); ++I)
+  {
+      Instruction &Inst = *I;
+      //Guardo se è una operazione binaria...
+      if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) 
+      {            
+      //PRIMA PARTE DEL SECONDO PUNTO 
+            //15 * x = x * 15 -> (𝑥 << 4) – x
+        if (BinOp->getOpcode() == Instruction::Mul) 
+        {
+          //ora dovrei controllare che (LHS?) RHV sia una costante
+          if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
+          {
+            //uso la variabile di tipo APInt perchè è quello che restituisce la funzione getValue()
+            APInt LHSValue = CI->getValue();
+
+            if(LHSValue.urem(2)) {
+              //NOTAA: vedi se si può mettere al di fuori dei for. 
+
+              //La funzione utilizzata arrotonda per eccesso, per questo motivo sottraggo uno. 
+              Value *ShiftValue = Builder.getInt32(LHSValue.nearestLogBase2()-1);
+              outs() << "Valore del shift (dovrebbe essere 4): " << ShiftValue << "\n"; 
+              //Ora calcolo il (x<<4)
+              Instruction *shlInst = BinaryOperator::Create(
+                Instruction::Shl, BinOp->getOperand(0), ShiftValue); 
+
+              //Creo la nuova istruzione che è una sottrazione tra x-shiftato e la x stessa
+              Instruction *subInst = BinaryOperator::Create(
+                Instruction::Sub, shlInst, BinOp->getOperand(0)); 
+              
+              //ora rimpiazzo e aggiorno gli usi
+              shlInst->insertAfter(&Inst); 
+              subInst->insertAfter(shlInst);
+              Inst.replaceAllUsesWith(subInst);
+              //Inst.eraseFromParent();
+            }
+          }
+        }
+
+          
+        //...del tipo div
+        if (BinOp->getOpcode() == Instruction::SDiv) 
+        {
+          //ora dovrei controllare che il numero costante(ipotizzando si trovi a destra(Right Hand Side) nella operazione) sia un multiplo di due
+          if (ConstantInt *CI = dyn_cast<ConstantInt>(BinOp->getOperand(1))) 
+          {
+            //uso la variabile di tipo APInt perchè è quello che restituisce la funzione getValue()
+            APInt RHSValue = CI->getValue();
+            //Controllo se è un multiplo di due con la funzione trovata nella classe APInt
+            if (RHSValue.isPowerOf2())
+            {
+              /**Ora che so se è una potenza di due, devo sostituire l'istruzione con quella dello shift a sinistra
+                Devo prima scoprire come si chiama lo shift a destra(perchè le punte puntano verso destra >>)**/
+                    Value *ShiftAmount = Builder.getInt32(RHSValue.logBase2());
+                    
+                    Instruction *NewInst = BinaryOperator::Create(
+                      Instruction::LShr, BinOp->getOperand(0), ShiftAmount);
+                    NewInst->insertAfter(&Inst);
+                    Inst.replaceAllUsesWith(NewInst);
+                    //Inst.eraseFromParent();
+            }
+          }
+        }
+      }
+    }
+  return true;
+}
+
+bool isPunto3(BasicBlock &B)
+{
+    //INIZIO PUNTO 3
 	// prelevo l'istruzione una ad una
         Instruction &Inst1st = Inst;
         // controllo se l'istruzione è un'addizione
@@ -169,10 +197,105 @@ bool runOnBasicBlock(BasicBlock &B) {
                         }
                 }
         }
-    }
     //FINE PUNTO 3
+}
+
+bool runOnBasicBlock(BasicBlock &B) {
+    
+    // Preleviamo le prime due istruzioni del BB
+    Instruction &Inst1st = *B.begin(), &Inst2nd = *(++B.begin());
+
+    // L'indirizzo della prima istruzione deve essere uguale a quello del 
+    // primo operando della seconda istruzione (per costruzione dell'esempio)
+    assert(&Inst1st == Inst2nd.getOperand(0));
+
+    // Stampa la prima istruzione
+    outs() << "PRIMA ISTRUZIONE: " << Inst1st << "\n";
+    // Stampa la prima istruzione come operando
+    outs() << "COME OPERANDO: ";
+    Inst1st.printAsOperand(outs(), false);
+    outs() << "\n";
+
+    // User-->Use-->Value
+    outs() << "I MIEI OPERANDI SONO:\n";
+    for (auto *Iter = Inst1st.op_begin(); Iter != Inst1st.op_end(); ++Iter) {
+      Value *Operand = *Iter;
+
+      if (Argument *Arg = dyn_cast<Argument>(Operand)) {
+        outs() << "\t" << *Arg << ": SONO L'ARGOMENTO N. " << Arg->getArgNo() 
+	       <<" DELLA FUNZIONE " << Arg->getParent()->getName()
+               << "\n";
+      }
+      if (ConstantInt *C = dyn_cast<ConstantInt>(Operand)) {
+        outs() << "\t" << *C << ": SONO UNA COSTANTE INTERA DI VALORE " << C->getValue()
+               << "\n";
+      }
+    }
+
+    outs() << "LA LISTA DEI MIEI USERS:\n";
+    for (auto Iter = Inst1st.user_begin(); Iter != Inst1st.user_end(); ++Iter) {
+      outs() << "\t" << *(dyn_cast<Instruction>(*Iter)) << "\n";
+    }
+
+    outs() << "E DEI MIEI USI (CHE E' LA STESSA):\n";
+    for (auto Iter = Inst1st.use_begin(); Iter != Inst1st.use_end(); ++Iter) {
+      outs() << "\t" << *(dyn_cast<Instruction>(Iter->getUser())) << "\n";
+    }
+
+    // Manipolazione delle istruzioni
+    Instruction *NewInst = BinaryOperator::Create(
+        Instruction::Add, Inst1st.getOperand(0), Inst1st.getOperand(0));
+
+    NewInst->insertAfter(&Inst1st);
+    // Si possono aggiornare le singole references separatamente?
+    // Controlla la documentazione e prova a rispondere.
+    Inst1st.replaceAllUsesWith(NewInst);
+
+    // ESERCIZIO 2 - un passo piu utile
+    // sostituiamo tutte le operazioni di MOLTIPLICAZIONE per due** con uno SHIFT appropriato. 
+    LLVMContext &context = B.getContext();
+    for (Instruction &instIter : B)
+    {
+      //controllo che sia un'operazione
+      if(auto *BinOp = dyn_cast<BinaryOperator>(&instIter)) {
+        //controllo che sia una mul 
+        if (BinOp->getOpcode() == Instruction::Mul) {
+          //controllo che il secondo operando sia una costante. 
+          //NOTA: Suppongo che Il primo operando è sempre un registro (?) V/F?
+          if (auto *value_LHS = dyn_cast<ConstantInt>(BinOp->getOperand(1))) {
+            APInt is_even = value_LHS->getValue();
+              //infine controllo che il secondo operando sia divisibile per due 
+              if(is_even.isPowerOf2()) {
+                //arrivati fin qui, devo eseguire il rimpiazzo di questa istruzione.  
+
+                //capire di quanto devo shiftare: 
+                // APInt n_shl = is_even.logBase2(); 
+
+                // Crea il ConstantInt con il valore desiderato
+                ConstantInt *constantTwo = ConstantInt::get(Type::getInt32Ty(context), is_even.logBase2());
+
+                //creo la nuova istruzione: 
+                /*constantTwo è un valore ConstantInt che eredita da Value (di molte generazioni),
+                    per cui è riconosciuto come Value */
+                Instruction *NewInst = BinaryOperator::Create(
+                  Instruction::Shl, instIter.getOperand(0), constantTwo); 
+
+                //ora rimpiazzo e aggiorno gli usi
+                NewInst->insertAfter(&instIter);
+                instIter.replaceAllUsesWith(NewInst);
+              }
+            }
+          
+        }
+      }
+    }
+
+    isPunto1(B);
+    isPunto2(B);
+    isPunto3(B);
+
     return true;
-  }
+}
 
 
 bool runOnFunction(Function &F) {
@@ -196,4 +319,3 @@ PreservedAnalyses LocalOpts::run(Module &M,
   
   return PreservedAnalyses::all();
 }
-
