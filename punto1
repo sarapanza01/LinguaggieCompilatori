@@ -9,6 +9,7 @@ PS Uso come base il file LocalOpts, ma lo svuoto completamente di tutto il codic
 #include "llvm/Transforms/Utils/LocalOpts.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/IRBuilder.h"
 
 //Temo che ci vorranno degli include in più, ma non so quali potrebbero essere
 
@@ -22,7 +23,7 @@ bool runOnBasicBlock(BasicBlock &B)
     //Ne scorro tutte le istruzioni
         for (BasicBlock::iterator I =B.begin(); I != B.end(); ++I) 
         {
-            Instruction &Inst = *I;
+            Instruction &Inst = &*I;
             //Ora controllo che la mia sia una operazione
             if (auto *BinOp = dyn_cast<BinaryOperator>(&Inst)) 
             {
@@ -81,6 +82,7 @@ bool runOnBasicBlock(BasicBlock &B)
                 }
             }
         }
+    }
     //Ora cancello tutte le istruzioni che devo cancellare
     for (auto inst : InstToDelete)
     {
