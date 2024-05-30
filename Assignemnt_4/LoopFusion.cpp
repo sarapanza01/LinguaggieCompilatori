@@ -6,18 +6,11 @@
 
 using namespace llvm;
 //Il secondo punto mi chiede di vedere se i due loop hanno lo stesso numero di iterazioni
+//Ho scoperto una funzione che conta proprio il trip count del loop
 int getLoopIterations(ScalarEvolution &SE, Loop &L)
 {
-        //conto tutti i rami backedge per sapere quante volte viene richiamato il loop
-        const SCEV *BackedgeTakenCount = SE.getBackedgeTakenCount(L);
-        if (const SCEVConstant *C = dyn_cast<SCEVConstant>(BackedgeTakenCount)) 
-        {
-                return C->getValue();
-        } 
-        else 
-        {
-            return 0;
-        }
+        int NumberOfIterations = SE.getSmallConstantTripCount(L);
+        return NumberOfIterations;
 }
 
 //Vorrei iniziare a lavorare sul punto 3, creando una funzione apposita che verifichi se due loop sono 
