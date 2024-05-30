@@ -29,4 +29,19 @@ FunctionAnalysisManager &AM) {
         LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
         DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
         PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
+
+        for (auto *L0 : LI)
+        {
+                for (auto *L1 : LI)
+                {
+                        if (isControlFlowEquivalent(DT,PDT,L0,L1))
+                        {
+                                outs() << "I loop sono entrambi eseguiti\n";
+                        }
+                        else
+                        {
+                                outs() << "I loop non sono Control Flow Equivalent\n";
+                        }
+                }
+        }
 }
