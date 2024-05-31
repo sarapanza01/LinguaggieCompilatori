@@ -34,7 +34,7 @@ bool areLoopsAdjacent(Loop *Loop1, Loop *Loop2) {
 
 //Il secondo punto mi chiede di vedere se i due loop hanno lo stesso numero di iterazioni
 //Ho scoperto una funzione che conta proprio il trip count del loop
-int getLoopIterations(ScalarEvolution &SE, Loop &L)
+int getLoopIterations(ScalarEvolution &SE, Loop *L)
 {
         int NumberOfIterations = SE.getSmallConstantTripCount(L);
         return NumberOfIterations;
@@ -43,14 +43,14 @@ int getLoopIterations(ScalarEvolution &SE, Loop &L)
 //Vorrei iniziare a lavorare sul punto 3, creando una funzione apposita che verifichi se due loop sono 
 //Control Flow Equivalent. Per scrivere l'algoritmo che fa questa operazione, mi baserò su 
 //quanto scritto nelle slide del prof
-bool isControlFlowEquivalent(DominatorTree &DT, PostDominatorTree &PDT, Loop &L0, Loop &L1)
+bool isControlFlowEquivalent(DominatorTree &DT, PostDominatorTree &PDT, Loop *L0, Loop *L1)
 {
         //Due loop L0 e L1 si dicono control flow equivalent
         //se quando uno esegue è garantito che esegua anche l’altro.
         //Se L0 domina L1 e L1 postdomina L0 allora i due loop sono control flow equivalenti
 
         //Posso dire che L0 domina L1 se l'ultimo blocco di L0 domina il primo blocco di L1(ovvero il suo preheader)
-        if (DT.dominates(L1->getHeader(), L2->getHeader()) && PDT.dominates(L2->getHeader(), L1->getHeader())) 
+        if (DT.dominates(L0->getHeader(), L1->getHeader()) && PDT.dominates(L1->getHeader(), L0->getHeader())) 
         {
             return true;
         } 
