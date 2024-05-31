@@ -60,6 +60,43 @@ bool isControlFlowEquivalent(DominatorTree &DT, PostDominatorTree &PDT, Loop *L0
         }
 }
 
+/*                      PUNTO 4                 */
+//mi serve controllare che non accedano la stessa zona di mem in interazioni diverse. 
+//in qual caso, non sono validi per ottimizzazione...
+//se sono validi per l'ottimizzazione, bisognerà implementare lo scambio di istruzioni. 
+bool haveValidDep(DependenceInfo &DI, Loop* L0, Loop* L1)
+{
+        //devo estrarre ogni istruzione dei loop dentro ai blocchi che li compongono
+        for (BasicBlock *BB0 : L0->getBlocks()) 
+        {
+                for (BasicBlock *BB1 : L1->getBlocks()) 
+                {
+                        for (Instruction &I0 : *BB0) 
+                        {
+                                for (Instruction &I1 : *BB1) 
+                                {
+                                        auto dep = DI.depends(&I0, &I1, true);
+                                        if (dep) //hanno dipendenza
+                                        {
+                                                outs() << "C'è dipendenza tra le istruzioni: " << I0 <<
+                                                        " e " << I1 << "\n"; 
+                                                if(dep->isDirectionNegative()) //ma la dep non è valida
+                                                {
+                                                        errs() << "C'è dipendenza negativa tra le istruzioni (quindi non valida)"; 
+                                                        return false; 
+                                                }
+                                                return true; 
+                                        }
+
+
+                                }
+                        }
+                }
+        }
+        //non hanno dipendenza
+        return false; 
+}
+
 PreservedAnalyses LoopFusion::run(Function &F,
 FunctionAnalysisManager &AM) {
         //Per il punto 1
@@ -78,6 +115,8 @@ FunctionAnalysisManager &AM) {
                // Example: Iterate over all pairs of loops and check adjacency
                for (auto &L1 : LI) {
                    if (L0 != L1) { // Ensure we're not comparing the same loop
+                   //TODO (?) : E se stessimo comparando due volte la stessa coppia di loop? 
+                   outs() << "Confronto tra due loop: " << L0 << " e " << L1 <<"\n"; 
                        if (areLoopsAdjacent(L0, L1)) {
                            errs() << "Loops are adjacent\n";
                        }
@@ -87,12 +126,16 @@ FunctionAnalysisManager &AM) {
                                 if (isControlFlowEquivalent(DT,PDT,L0,L1))
                                 {
                                         outs() << "I loop sono entrambi eseguiti\n";
+
                                 }
                                 else
                                 {
                                         outs() << "I loop non sono Control Flow Equivalent\n";
                                 }
                         }
+                        if(haveValidDep(DI, L0, L1))
+                                outs() << "Hanno dipendenze i loop\t" << L0 
+                                        << " e " << L1  << "\n"; 
                    }
                }
            }
