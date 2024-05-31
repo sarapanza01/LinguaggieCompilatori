@@ -37,7 +37,7 @@ bool areLoopsAdjacent(Loop *Loop1, Loop *Loop2) {
 int getLoopIterations(ScalarEvolution &SE, Loop *L)
 {
         int NumberOfIterations = SE.getSmallConstantTripCount(L);
-        return NumberOfIterations;
+        return NumberOfIterations + 1;
 }
 
 //Vorrei iniziare a lavorare sul punto 3, creando una funzione apposita che verifichi se due loop sono 
