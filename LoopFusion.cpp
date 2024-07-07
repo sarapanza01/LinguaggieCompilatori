@@ -111,11 +111,14 @@ void fuseLoops(Function &F, Loop *L0, Loop *L1, LoopInfo &LI, DominatorTree &DT)
 }
 
 PreservedAnalyses LoopFusion::run(Function &F, FunctionAnalysisManager &AM) {
-    // Recupera le analisi necessarie
+    // Per il punto 1
     LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
+    // Per il punto 2
     ScalarEvolution &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
+    // Per il punto 3
     DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
     PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
+    // Per il punto 4
     DependenceInfo &DI = AM.getResult<DependenceAnalysis>(F);
 
     for (auto &L0 : LI) {
