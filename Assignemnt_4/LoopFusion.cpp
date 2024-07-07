@@ -80,7 +80,7 @@ bool haveValidDep(DependenceInfo &DI, Loop* L0, Loop* L1)
                                         {
                                                 outs() << "C'è dipendenza tra le istruzioni: " << I0 <<
                                                         " e " << I1 << "\n"; 
-                                                if(dep->isDirectionNegative()) //ma la dep non è valida
+                                                if(dep->isAnti()) //ma la dep non è valida
                                                 {
                                                         errs() << "C'è dipendenza negativa tra le istruzioni (quindi non valida)"; 
                                                         return false; 
