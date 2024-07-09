@@ -79,8 +79,7 @@ bool runOnLoop(Loop &L, LoopAnalysisManager &LAM, LoopStandardAnalysisResults &L
         for (auto &Inst : *BB) {
             if (myIsLoopInvariant(Inst, L)) {
                 outs() << Inst.getOpcodeName() << " é loop invariant\n";
-                                                                           
- InstLI.push_back(&Inst);
+                InstLI.push_back(&Inst);
             }
         }
         i++;
