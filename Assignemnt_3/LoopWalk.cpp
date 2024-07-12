@@ -1,118 +1,272 @@
-#include "llvm/Transforms/Utils/LoopWalk.h"
-#include "llvm/Analysis/LoopPass.h"
-#include "llvm/IR/Dominators.h"
-#include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Transforms/Utils/LoopFusion.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/Analysis/PostDominators.h"
+#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/DependenceAnalysis.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/Support/GenericLoopInfo.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
+
 
 using namespace llvm;
-bool myIsLoopInvariant(Instruction &Inst, Loop &L) {
-    for (auto *Iter = Inst.op_begin(); Iter != Inst.op_end(); ++Iter) {
-        Value *Operand = Iter->get();
-        // Controllo che non sia un PHINode
-        if (isa<PHINode>(Inst) || isa<BranchInst>(Inst)) {
-            return false;
+
+
+bool areLoopsAdjacent(Loop *Loop1, Loop *Loop2) {
+
+    BasicBlock *ExitingBlock = Loop1->getExitBlock(); 
+    BasicBlock *PreHeader = Loop2->getLoopPreheader(); 
+    BasicBlock *Header = Loop2->getHeader(); 
+
+    //controllo per escludere un segm core fault
+    if (!ExitingBlock || !PreHeader || !Header) {
+        errs() << "One of the blocks is null\n";
+        return false;
+    }
+
+    if(Loop1->isGuarded() && Loop2->isGuarded())
+    {
+        errs() << "I due loop sono guarded\n"; 
+
+        for (BasicBlock *Successor : successors(ExitingBlock)) {
+            if (Successor == Header) {
+                errs() << "Il successore" << Successor << " è uguale all'header "<<Header<<"\n"; 
+                return true;
+            }
         }
-        // Controllo che non sia una costante
-        if (Instruction *arg = dyn_cast<Instruction>(Operand)) {
-            // Controllo che la variabile sia dichiarata nel loop
-            if (L.contains(arg)) {
-                // In questo modo controllo iterativamente se
-                // tutti gli operandi di una funzione sono
-                // o meno loop invariant
-                if (!myIsLoopInvariant(*arg, L)) {
-                    return false;
+    }
+    else {
+        errs() << "I due loop non sono guarded.\n"; 
+        errs() << "L'exit block di L0 "<<ExitingBlock <<" deve essere il preheader di L1 "<<PreHeader<<".\n"; 
+
+        if(ExitingBlock == PreHeader)
+        {
+            errs() << "Sono adiacenti\n"; 
+            return true; 
+        }
+        else{
+            errs() << "Provo a fare come nel codice di riferimento: \n"; 
+            Instruction *terminator = ExitingBlock->getTerminator(); 
+            if(!terminator)
+            {
+                errs() << "terminator non esiste: "<<terminator; 
+                return false; 
+            }
+            errs() << "Terminator è: "<<terminator<<"\n"; 
+
+            if (auto *BI = dyn_cast<BranchInst>(terminator)) {
+                errs() << "E' una branchInst\n"; 
+                for (unsigned i = 0, e = BI->getNumSuccessors(); i != e; ++i) {
+                    BasicBlock *successor = BI->getSuccessor(i);
+                    errs() << "Successore: " << successor->getName() << " \n";
+                    if (successor == Header || successor == PreHeader) {
+                        errs() << "Successore trovato: " << successor->getName() << "\n";
+                        return true;
+                    }
+                }
+            } else if (auto *SI = dyn_cast<SwitchInst>(terminator)) {
+                for (auto &Case : SI->cases()) {
+                errs() << "E' una SwitchInst\n"; 
+                    BasicBlock *successor = Case.getCaseSuccessor();
+                    errs() << "Successore: " << successor->getName() << " \n";
+                    if (successor == Header || successor == PreHeader) {
+                        errs() << "Successore trovato: " << successor->getName() << "\n";
+                        return true;
+                    }
+                }
+            } else if (auto *IBI = dyn_cast<IndirectBrInst>(terminator)) {
+                errs() << "E' una IndirectBrInst\n"; 
+                for (unsigned i = 0, e = IBI->getNumDestinations(); i != e; ++i) {
+                    BasicBlock *successor = IBI->getDestination(i);
+                    errs() << "Successore: " << successor->getName() << " \n";
+                    if (successor == Header || successor == PreHeader) {
+                        errs() << "Successore trovato: " << successor->getName() << "\n";
+                        return true;
+                    }
+                }
+            } else if (auto *RI = dyn_cast<ReturnInst>(terminator)) {
+                // Handle ReturnInst if applicable
+                errs() << "ReturnInst found, no successors to check\n";
+            } else if (auto *UI = dyn_cast<UnreachableInst>(terminator)) {
+                // Handle UnreachableInst if applicable
+                errs() << "UnreachableInst found, no successors to check\n";
+            } else {
+                errs() << "L'istruzione di terminazione non ha successori\n";
+                return false;
+            }
+        }
+    }
+
+    errs()<<"Non sono adiacenti\n"; 
+    return false; 
+}
+
+// Funzione per ottenere il numero di iterazioni di un loop
+int getLoopIterations(ScalarEvolution &SE, Loop *L) {
+    int NumberOfIterations = SE.getSmallConstantTripCount(L);
+    return NumberOfIterations + 1;
+}
+
+// Funzione per verificare se due loop sono equivalenti in termini di flusso di controllo
+bool isControlFlowEquivalent(DominatorTree &DT, PostDominatorTree &PDT, Loop *L0, Loop *L1) {
+    if (DT.dominates(L0->getHeader(), L1->getHeader()) && PDT.dominates(L1->getHeader(), L0->getHeader())) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+// Funzione per verificare se due loop hanno dipendenze valide
+bool haveValidDep(DependenceInfo &DI, Loop* L0, Loop* L1) {
+    bool have_valid_dep = false; 
+    for (BasicBlock *BB0 : L0->getBlocks()) {
+        for (BasicBlock *BB1 : L1->getBlocks()) {
+            for (Instruction &I0 : *BB0) {
+                for (Instruction &I1 : *BB1) {
+                    auto dep = DI.depends(&I0, &I1, true);
+                    if (dep) {
+                        have_valid_dep = true; 
+                        outs() << "C'è dipendenza tra le istruzioni: " << I0 << " e " << I1 << "\n"; 
+                        if(!dep->isConfused() && dep->isAnti()) {
+                            errs() << "C'è dipendenza negativa tra le istruzioni (quindi non valida)"; 
+                            return false; 
+                        }
+                    }
                 }
             }
         }
     }
-    return true;
+    //sono state trovate dipendenze e si è notato che sono valide
+    if (have_valid_dep)
+    {
+        outs () << "I loop possono essere fusi\n"; 
+        return true; 
+    }
+        
+    return false; 
 }
 
-bool dominatesExits(Instruction *Inst, DominatorTree &DT, Loop &L) {
-    // vettore in cui mi segno le uscite
-    std::vector<BasicBlock*> exits;
-    for (auto *BI : L.getBlocks()) {
-        if (BI != L.getHeader() && L.isLoopExiting(BI)) {
-            exits.push_back(BI);
+void fuseLoops(Function &F, Loop *L0, Loop *L1, LoopInfo &LI, DominatorTree &DT) {
+    PHINode *IndVar0 = L0->getCanonicalInductionVariable();
+    PHINode *IndVar1 = L1->getCanonicalInductionVariable();
+
+    IndVar1->replaceAllUsesWith(IndVar0); 
+
+    BasicBlock *HeaderL0 = L0->getHeader();
+    BasicBlock *HeaderL1 = L1->getHeader();
+    BasicBlock *BodyL0 = L0->getHeader()->getNextNode();
+    BasicBlock *BodyL1 = L1->getHeader()->getNextNode();
+    BasicBlock *LatchL0 = L0->getLoopLatch();
+    BasicBlock *LatchL1 = L1->getLoopLatch();
+    BasicBlock *ExitL0 = L0->getExitBlock();
+    BasicBlock *ExitL1 = L1->getExitBlock();
+    BasicBlock *PreHeader0 = L0->getLoopPreheader(); 
+    BasicBlock *PreHeader1 = L1->getLoopPreheader(); 
+    
+    // PreHeader1->replaceSuccessorsPhiUsesWith(PreHeader0);
+    // LatchL0->replaceSuccessorsPhiUsesWith(LatchL1);
+
+    if (!HeaderL0 || !HeaderL1 || !BodyL0 || !BodyL1 || !LatchL0 || !LatchL1 || !ExitL1) {
+    errs() << "Errore: Blocchi di base non validi.\n";
+    return;
+    }
+
+    errs()<<"Collega il corpo di L0 al corpo di L1\n";
+    Instruction *TerminatorBodyL0 = BodyL0->getTerminator();
+    TerminatorBodyL0->setSuccessor(0, BodyL1);
+
+    errs()<<"Collega l'header di L0 all'uscita di L1\n";
+    Instruction *TerminatorHeaderL0 = L0->getHeader()->getTerminator();
+    for (unsigned i = 0; i < TerminatorHeaderL0->getNumSuccessors(); ++i) {
+        if (TerminatorHeaderL0->getSuccessor(i) == PreHeader1) {
+            TerminatorHeaderL0->setSuccessor(i, ExitL1);
+            IndVar0->replaceIncomingBlockWith(PreHeader1, ExitL1); 
+            break;
         }
     }
-                                          
- // Scorro le uscite e verifico se l’istruzione appartiene
-    // ad una di queste
-    for (auto *exit : exits) {
-        if (!DT.dominates(Inst->getParent(), exit)) {
-            return false;
+
+    errs()<<"Collega il corpo di L1 al latch di L0\n";
+    Instruction *TerminatorBodyL1 = BodyL1->getTerminator();
+    TerminatorBodyL1->setSuccessor(0, LatchL0);
+
+
+    errs()<<"L'header di loop1 punta al latch di loop1\n"; 
+    for (unsigned i = 0; i < HeaderL1->getTerminator()->getNumSuccessors(); ++i) {
+        if (HeaderL1->getTerminator()->getSuccessor(i) == BodyL1) {
+            HeaderL1->getTerminator()->setSuccessor(i, LatchL1);
         }
     }
-    return true;
+
+
+    // Aggiorna LoopInfo e DominatorTree
+    errs()<<"Aggiorna LoopInfo e DominatorTree\n";
+    LI.removeBlock(HeaderL1);
+    if (auto *ParentLoop = L0->getParentLoop()) {
+        ParentLoop->removeBlockFromLoop(HeaderL1);
+    } else {
+        LI.removeBlock(HeaderL1);
+    }
+
+    DT.eraseNode(HeaderL1);
+    // errs()<<"SetSuccessorOf L0\n";
+    // b1->getTerminator()->setSuccessor(0, L1->getHeader()); 
+    // auto *BI = dyn_cast<BranchInst>(terminator); 
+    // BI->setSuccessor(0, L1->getHeader()); 
+
+    // *b1 = L1->getExitBlock(); 
+    // errs()<<"Drop all references\n";
+    // b2->dropAllReferences(); 
+
+    // errs()<<"removeBlock\n";    
+    // b2->eraseFromParent(); 
+    // LI.removeBlock(b2);
+    // errs()<<"Remove Block From Loop\n";  
+    // L0->getParentLoop()->removeBlockFromLoop(b2); 
+    // deleteBlock(b2); 
+    // ^ sarebbe eraseFromParent()
+    return; 
 }
 
-bool dominatesUseBlocks(Instruction *Inst, DominatorTree &DT) {
-    for (auto Iter = Inst->user_begin(); Iter != Inst->user_end(); ++Iter) {
-        if (!DT.dominates(Inst, dyn_cast<Instruction>(*Iter))) {
-            return false;
-        }
-    }
-    return true;
-}
+PreservedAnalyses LoopFusion::run(Function &F, FunctionAnalysisManager &AM) {
+    // Per il punto 1
+    LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
+    // Per il punto 2
+    ScalarEvolution &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
+    // Per il punto 3
+    DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
+    PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
+    // Per il punto 4
+    DependenceInfo &DI = AM.getResult<DependenceAnalysis>(F);
 
-bool runOnLoop(Loop &L, LoopAnalysisManager &LAM, LoopStandardAnalysisResults &LAR, LPMUpdater &LU) {
-    // Se il loop non è nella forma semplificata è inutile continuare
-    if (!L.isLoopSimplifyForm()) {
-        outs() << "Il loop non è in forma normalizzata\n";
-        return false;
-    }
-    // Creo il dominance tree
-    DominatorTree &DT = LAR.DT;
-    // Creo un vettore per le istruzioni che devo spostare
-    std::vector<Instruction*> InstToMove;
-    // Creo un vettore per le istruzioni Loop Invariant
-    std::vector<Instruction*> InstLI;
-
-    // Itero sui BasicBlock del loop
-    int i = 1; // Per contare I blocchi
-    for (auto BI = L.block_begin(); BI != L.block_end(); ++BI) {
-        BasicBlock *BB = *BI;
-        outs() << "Blocco" << i << "\n";
-        for (auto &Inst : *BB) {
-            if (myIsLoopInvariant(Inst, L)) {
-                outs() << Inst.getOpcodeName() << " é loop invariant\n";
-                InstLI.push_back(&Inst);
+    for (auto iterL0 = LI.begin(); iterL0 != LI.end(); ++iterL0) {
+        Loop *L0 = *iterL0;
+        outs() << "Il loop fa " << getLoopIterations(SE, L0) << " iterazioni\n";
+        auto iterL1 = iterL0;
+        ++iterL1; // Inizia dal loop successivo a L0
+        // for (; iterL1 != LI.end(); ++iterL1) {
+        for (auto iterL1 = LI.begin(); iterL1 != LI.end(); ++iterL1) {
+            Loop *L1 = *iterL1; 
+            if (L0 != L1) {
+                outs() << "Confronto tra due loop: " << L0 << " e " << L1 << "\n"; 
+                if (areLoopsAdjacent(L0, L1)) {
+                    errs() << "I loop sono adiacenti\n";
+                    if (getLoopIterations(SE, L0) == getLoopIterations(SE, L1)) {
+                        if (isControlFlowEquivalent(DT, PDT, L0, L1)) {
+                            outs() << "I loop sono entrambi eseguiti\n";
+                            if (haveValidDep(DI, L0, L1)) {
+                                outs() << "Hanno dipendenze valide i loop " << L0 << " e " << L1 << "\n";
+                                fuseLoops(F, L0, L1, LI, DT);
+                            }
+                        } else {
+                            outs() << "I loop non sono equivalenti in termini di flusso di controllo\n";
+                        }
+                    }
+                }
             }
         }
-        i++;
     }
-
-    // Ora scrollo le istruzioni che si possono spostare e
-    // controllo che siano in blocchi che dominano tutte le
-    // uscite del loop e che dominano tutti I blocchi del loop
-    // che usano la variabile
-    for (auto *inst : InstLI) {
-        if (dominatesExits(inst, DT, L) && dominatesUseBlocks(inst, DT)) {
-            InstToMove.push_back(inst);
-        }
-    }
-
-    // Ora devo spostare queste istruzioni nel preheader
-    BasicBlock *preHeader = L.getLoopPreheader();
-    if (!preHeader) {
-        outs() << "Preheader non trovato\n";
-        return false;
-    }
-    for (auto inst : InstToMove) {
-        outs() << *inst << " è da spostare\n";
-        inst->moveBefore(&preHeader->back());
-    }
-    return true;
-}
-
-PreservedAnalyses LoopWalk::run(Loop &L, LoopAnalysisManager &LAM, LoopStandardAnalysisResults &LAR, LPMUpdater &LU) {
-    if (runOnLoop(L, LAM, LAR, LU)) {
-        return PreservedAnalyses::all();
-    } else {
-        return PreservedAnalyses::none();
-    }
-                                                  
+    return PreservedAnalyses::all();
 }
