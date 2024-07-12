@@ -48,7 +48,6 @@ bool areLoopsAdjacent(Loop *Loop1, Loop *Loop2) {
             return true; 
         }
         else{
-            //codice di rif: https://sridhargopinath.in/files/loop-fusion.pdf
             errs() << "Provo a fare come nel codice di riferimento: \n"; 
             Instruction *terminator = ExitingBlock->getTerminator(); 
             if(!terminator)
@@ -122,23 +121,31 @@ bool isControlFlowEquivalent(DominatorTree &DT, PostDominatorTree &PDT, Loop *L0
 
 // Funzione per verificare se due loop hanno dipendenze valide
 bool haveValidDep(DependenceInfo &DI, Loop* L0, Loop* L1) {
+    bool have_valid_dep = false; 
     for (BasicBlock *BB0 : L0->getBlocks()) {
         for (BasicBlock *BB1 : L1->getBlocks()) {
             for (Instruction &I0 : *BB0) {
                 for (Instruction &I1 : *BB1) {
                     auto dep = DI.depends(&I0, &I1, true);
                     if (dep) {
+                        have_valid_dep = true; 
                         outs() << "C'è dipendenza tra le istruzioni: " << I0 << " e " << I1 << "\n"; 
-                        if(dep->isAnti()) {
+                        if(!dep->isConfused() && dep->isAnti()) {
                             errs() << "C'è dipendenza negativa tra le istruzioni (quindi non valida)"; 
                             return false; 
                         }
-                        return true; 
                     }
                 }
             }
         }
     }
+    //sono state trovate dipendenze e si è notato che sono valide
+    if (have_valid_dep)
+    {
+        outs () << "I loop possono essere fusi\n"; 
+        return true; 
+    }
+        
     return false; 
 }
 
